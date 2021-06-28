@@ -130,9 +130,16 @@ const App = () => {
             console.log('Loaded');
           }}
           onNavigationStateChange={state => {
+            // # ios only
             console.log(Object.keys(state), state.url);
             refWebview.canMove.back = state.canGoBack;
             refWebview.canMove.forward = state.canGoForward;
+          }}
+          onLoadProgress={({nativeEvent: e}) => {
+            if (Platform.OS === 'android') {
+              refWebview.canMove.back = e.canGoBack;
+              refWebview.canMove.forward = e.canGoForward;
+            }
           }}
         />
       </GestureRecognizer>
