@@ -19,6 +19,7 @@ import {
   StatusBar,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
@@ -51,6 +52,7 @@ const App = () => {
   const [visibleModal, setVisibleModal] = useState(false);
   const [visibleInput, setVisibleInput] = useState(false);
   const [marks, setMarks] = useState<TMark[]>([]);
+  const [newMarkName, setNewMarkName] = useState('');
   const isDarkMode = useColorScheme() === 'dark';
 
   const backgroundStyle = {
@@ -87,7 +89,23 @@ const App = () => {
     const existedIdx = marks.findIndex(m => m.url === url);
     return existedIdx === -1;
   };
-  const addMark = () => {};
+  const addMark = () => {
+    console.log(`name: `, newMarkName);
+    console.log(`url: `, refWebview.currentUrl);
+
+    if (!newMarkName.length) {
+      return;
+    }
+
+    // 1. AsyncStorage에 추가
+    // 2. setMarks
+
+    setVisibleInput(false);
+  };
+  const cancel = () => {
+    setNewMarkName('');
+    setVisibleInput(false);
+  };
 
   return (
     <SafeAreaView style={{...backgroundStyle, flex: 1}}>
@@ -180,6 +198,7 @@ const App = () => {
               </TouchableOpacity>
               <TouchableOpacity
                 onPress={() => {
+                  console.log(`@@ `, canAddMark());
                   if (canAddMark()) setVisibleInput(true);
                 }}
                 style={{
@@ -201,11 +220,87 @@ const App = () => {
             />
           </View>
         </View>
-      </Modal>
 
-      <Modal transparent visible={visibleInput}>
-        {/* 제목 입력하는 모달 */}
-        <View></View>
+        <Modal transparent visible={visibleInput}>
+          {/* 제목 입력하는 모달 */}
+          <View
+            style={{
+              flex: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+              borderWidth: 2,
+              borderColor: 'red',
+            }}>
+            <View
+              style={{
+                position: 'absolute',
+                width: '100%',
+                height: '100%',
+                backgroundColor: '#000000aa',
+              }}
+              onTouchEnd={() => {
+                setVisibleInput(false);
+              }}
+            />
+            <View
+              style={{
+                width: '80%',
+                backgroundColor: '#fff',
+                borderRadius: 10,
+                alignItems: 'center',
+              }}>
+              <Text
+                style={{
+                  marginTop: 35,
+                  fontWeight: 'bold',
+                  fontSize: 20,
+                  color: '#444',
+                }}>
+                북마크 이름을 입력해 주세요
+              </Text>
+              <TextInput
+                autoFocus
+                style={{
+                  width: '90%',
+                  borderBottomWidth: 1,
+                  borderBottomColor: newMarkName.length ? '#6078ea' : '#aeaeae',
+                  marginVertical: 30,
+                  fontSize: 15,
+                  paddingVertical: 5,
+                  paddingHorizontal: 10,
+                  color: '#000',
+                }}
+                placeholder="새로운 북마크 이름"
+                onChangeText={t => {
+                  setNewMarkName(t);
+                }}
+              />
+              <View
+                style={{
+                  flexDirection: 'row',
+                  borderTopWidth: 0.5,
+                  borderTopColor: '#aeaeae',
+                }}>
+                <TouchableOpacity
+                  style={{
+                    ...styles.btnInModal,
+                    borderRightWidth: 0.5,
+                    borderRightColor: '#aeaeae',
+                  }}
+                  onPress={addMark}>
+                  <Text style={{...styles.btnTextInModal, color: '#6078ea'}}>
+                    추가
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnInModal} onPress={cancel}>
+                  <Text style={{...styles.btnTextInModal, color: '#4a4a4a'}}>
+                    취소
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
       </Modal>
     </SafeAreaView>
   );
@@ -227,6 +322,17 @@ const styles = StyleSheet.create({
   },
   highlight: {
     fontWeight: '700',
+  },
+
+  btnInModal: {
+    flex: 1,
+    height: 50,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  btnTextInModal: {
+    fontWeight: 'bold',
+    fontSize: 15,
   },
 });
 
