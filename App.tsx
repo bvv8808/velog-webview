@@ -12,6 +12,7 @@ import React, {createRef, useEffect, useRef, useState} from 'react';
 import {
   BackHandler,
   FlatList,
+  Image,
   Modal,
   Platform,
   SafeAreaView,
@@ -35,6 +36,7 @@ import {
 import WebView from 'react-native-webview';
 import GestureRecognizer from 'react-native-swipe-gestures';
 import AsyncStorage from '@react-native-community/async-storage';
+import CardView from '@hyeonwoo/react-native-cardview';
 
 type TMark = {
   url: string;
@@ -42,9 +44,10 @@ type TMark = {
 };
 type TStatus = {canBack: boolean; currentUrl: string; ref: any};
 
+const homeUrl = 'https://velog.io/';
 let refWebview: TStatus = {
   canBack: false,
-  currentUrl: '',
+  currentUrl: homeUrl,
   ref: null,
 };
 
@@ -54,6 +57,7 @@ const App = () => {
   const [marks, setMarks] = useState<TMark[]>([]);
   const [newMarkName, setNewMarkName] = useState('');
   const isDarkMode = useColorScheme() === 'dark';
+  const [curUrl, setCurUrl] = useState(homeUrl);
 
   const backgroundStyle = {
     backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
@@ -65,7 +69,7 @@ const App = () => {
   };
 
   useEffect(() => {
-    AsyncStorage.getItem('bookmarks').then(marks => {
+    AsyncStorage.getItem('marks').then(marks => {
       if (marks) setMarks(JSON.parse(marks));
     });
 
@@ -100,6 +104,16 @@ const App = () => {
     // 1. AsyncStorage에 추가
     // 2. setMarks
 
+    const newMark = {
+      url: refWebview.currentUrl,
+      title: newMarkName,
+    };
+    let copied = marks.slice();
+    copied.unshift(newMark);
+
+    AsyncStorage.setItem('marks', JSON.stringify(copied));
+    setMarks(copied);
+
     setVisibleInput(false);
   };
   const cancel = () => {
@@ -111,10 +125,15 @@ const App = () => {
     <SafeAreaView style={{...backgroundStyle, flex: 1}}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
       <View style={{width: '100%', height: 30, ...backgroundStyle}}>
-        <TouchableOpacity style={{padding: 5, backgroundColor: 'red'}}>
-          <Text>APP</Text>
-        </TouchableOpacity>
+        <Text
+          style={{
+            marginLeft: 15,
+            color: isDarkMode ? '#ffffff88' : '#00000088',
+          }}>
+          Made by @hyeonwoo
+        </Text>
       </View>
+
       <GestureRecognizer
         onSwipeLeft={swipeLeft}
         onSwipeRight={swipeRight}
@@ -127,7 +146,7 @@ const App = () => {
           ref={ref => {
             refWebview.ref = ref;
           }}
-          source={{uri: 'https://velog.io'}}
+          source={{uri: curUrl}}
           style={{
             height: '100%',
             width: '100%',
@@ -182,6 +201,8 @@ const App = () => {
               height: '80%',
               backgroundColor: '#fff',
               borderRadius: 10,
+              // paddingVertical: 30,
+              paddingBottom: 30,
             }}>
             {/* Modal Header */}
             <View
@@ -193,28 +214,77 @@ const App = () => {
                 paddingHorizontal: 10,
               }}>
               <TouchableOpacity
-                style={{width: 30, height: 30, backgroundColor: 'green'}}>
-                <Text>Home</Text>
+                style={{width: 30, height: 30}}
+                onPress={() => {
+                  if (refWebview.currentUrl === homeUrl) return;
+                  setCurUrl(homeUrl);
+                  setVisibleModal(false);
+                }}>
+                <Image
+                  source={require('./logo_velog.png')}
+                  style={{width: '100%', height: '100%'}}
+                />
               </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={() => {
+                  if (refWebview.currentUrl === homeUrl) return;
                   console.log(`@@ `, canAddMark());
                   if (canAddMark()) setVisibleInput(true);
                 }}
                 style={{
-                  padding: 5,
-                  backgroundColor: 'blue',
-                  width: 50,
+                  // paddingVertical: 5,
+                  height: 30,
+                  justifyContent: 'center',
+                  paddingHorizontal: 10,
+                  borderRadius: 7,
+                  backgroundColor: '#6078ea',
                 }}>
-                <Text>추가</Text>
+                <Text
+                  style={{
+                    color: '#fbfbfb',
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                  }}>
+                  현재 페이지를 북마크에 추가
+                </Text>
               </TouchableOpacity>
             </View>
 
+            <View
+              style={{
+                marginHorizontal: 10,
+                marginTop: 20,
+              }}>
+              <Text style={{fontSize: 16, color: '#444', fontWeight: 'bold'}}>
+                북마크 목록
+              </Text>
+            </View>
+
             <FlatList
-              contentContainerStyle={{borderWidth: 2, borderColor: 'blue'}}
               data={marks}
               renderItem={item => {
-                return <View></View>;
+                return (
+                  <CardView cardElevation={2}>
+                    <TouchableOpacity
+                      style={styles.mark}
+                      onPress={() => {
+                        setCurUrl(item.item.url);
+                        setVisibleModal(false);
+                      }}>
+                      <Text
+                        numberOfLines={2}
+                        style={{
+                          width: '100%',
+                          paddingHorizontal: 20,
+                          color: '#000',
+                          fontSize: 16,
+                        }}>
+                        {item.item.title}
+                      </Text>
+                    </TouchableOpacity>
+                  </CardView>
+                );
               }}
               keyExtractor={item => item.url}
             />
@@ -333,6 +403,17 @@ const styles = StyleSheet.create({
   btnTextInModal: {
     fontWeight: 'bold',
     fontSize: 15,
+  },
+  mark: {
+    marginVertical: 15,
+    marginHorizontal: 10,
+    // width: '90%',
+    // alignSelf: 'center',
+
+    alignItems: 'center',
+    paddingVertical: 15,
+    borderRadius: 7,
+    backgroundColor: '#f3f3f3',
   },
 });
 
