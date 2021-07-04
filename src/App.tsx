@@ -8,41 +8,41 @@
  * @format
  */
 
-import React, {createRef, useEffect, useRef, useState} from 'react';
+import React, {useEffect, useState} from 'react';
 import {
   BackHandler,
+  Dimensions,
   FlatList,
   Image,
   Modal,
   Platform,
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
   useColorScheme,
   View,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+import {Colors} from 'react-native/Libraries/NewAppScreen';
 import WebView from 'react-native-webview';
 import GestureRecognizer from 'react-native-swipe-gestures';
 import AsyncStorage from '@react-native-community/async-storage';
 import CardView from '@hyeonwoo/react-native-cardview';
+import ModalCreate from './components/ModalCreate';
+import ModalMore from './components/ModalMore';
+import toast from 'react-native-simple-toast';
+import Clipboard from '@react-native-community/clipboard';
+import {icoLogo} from './images';
 
 type TMark = {
   url: string;
   title: string;
 };
 type TStatus = {canBack: boolean; currentUrl: string; ref: any};
+
+const screenWidth = Dimensions.get('screen').width;
 
 const homeUrl = 'https://velog.io/';
 let refWebview: TStatus = {
@@ -53,7 +53,9 @@ let refWebview: TStatus = {
 
 const App = () => {
   const [visibleModal, setVisibleModal] = useState(false);
+  const [modifing, setModifing] = useState(false);
   const [visibleInput, setVisibleInput] = useState(false);
+  const [markMore, setMarkMore] = useState<TMark | null>(null);
   const [marks, setMarks] = useState<TMark[]>([]);
   const [newMarkName, setNewMarkName] = useState('');
   const isDarkMode = useColorScheme() === 'dark';
@@ -81,11 +83,15 @@ const App = () => {
     };
   }, []);
 
-  const swipeLeft = () => {
+  const swipeLeft = (e: any) => {
+    if (visibleModal) return;
+
+    const startRateX = e.x0 / screenWidth;
+    if (startRateX < 0.85) return;
+
     setVisibleModal(true);
   };
   const swipeRight = () => {
-    console.log('Swipe: right');
     if (refWebview.canBack && refWebview.ref) refWebview.ref.goBack();
   };
   const canAddMark = () => {
@@ -93,11 +99,10 @@ const App = () => {
     const existedIdx = marks.findIndex(m => m.url === url);
     return existedIdx === -1;
   };
-  const addMark = () => {
-    console.log(`name: `, newMarkName);
+  const addMark = (name: string) => {
     console.log(`url: `, refWebview.currentUrl);
 
-    if (!newMarkName.length) {
+    if (!name.length) {
       return;
     }
 
@@ -106,21 +111,40 @@ const App = () => {
 
     const newMark = {
       url: refWebview.currentUrl,
-      title: newMarkName,
+      title: name,
     };
     let copied = marks.slice();
     copied.unshift(newMark);
 
-    AsyncStorage.setItem('marks', JSON.stringify(copied));
-    setMarks(copied);
-
-    setVisibleInput(false);
+    AsyncStorage.setItem('marks', JSON.stringify(copied)).then(() => {
+      setMarks(copied);
+      setVisibleInput(false);
+      toast.show('추가 되었습니다', 0.7);
+    });
   };
-  const cancel = () => {
-    setNewMarkName('');
-    setVisibleInput(false);
-  };
+  const deleteMark = () => {
+    if (!markMore) return;
 
+    const filtered = marks.filter(m => m.url !== markMore.url);
+    AsyncStorage.setItem('marks', JSON.stringify(filtered)).then(() => {
+      setMarks(filtered);
+      setMarkMore(null);
+      toast.show('삭제 되었습니다', 0.7);
+    });
+  };
+  const modifyMark = (name: string) => {
+    if (!markMore) return;
+    const modifingIdx = marks.findIndex(m => m.url === markMore.url);
+    let copied = marks.slice();
+
+    copied[modifingIdx].title = name;
+
+    AsyncStorage.setItem('marks', JSON.stringify(copied)).then(() => {
+      setMarks(copied);
+      setModifing(false);
+      setMarkMore(null);
+    });
+  };
   return (
     <SafeAreaView style={{...backgroundStyle, flex: 1}}>
       <StatusBar barStyle={isDarkMode ? 'light-content' : 'dark-content'} />
@@ -153,9 +177,10 @@ const App = () => {
           }}
           onError={e => {
             console.log('Error : ', e);
-          }}
-          onLoad={() => {
-            console.log('Loaded');
+            toast.show(
+              '죄송합니다. 앱 실행 중 에러가 발생했습니다. 앱을 재시작 하셔도 증상이 여전할 시 리뷰 남겨주시면 감사 드립니다',
+              3,
+            );
           }}
           onNavigationStateChange={state => {
             // # ios only
@@ -193,15 +218,11 @@ const App = () => {
 
           {/* Modal */}
           <View
-            onTouchEnd={() => {
-              console.log(`@@`);
-            }}
             style={{
               width: '80%',
               height: '80%',
               backgroundColor: '#fff',
               borderRadius: 10,
-              // paddingVertical: 30,
               paddingBottom: 30,
             }}>
             {/* Modal Header */}
@@ -221,7 +242,7 @@ const App = () => {
                   setVisibleModal(false);
                 }}>
                 <Image
-                  source={require('./logo_velog.png')}
+                  source={icoLogo.src}
                   style={{width: '100%', height: '100%'}}
                 />
               </TouchableOpacity>
@@ -229,7 +250,6 @@ const App = () => {
               <TouchableOpacity
                 onPress={() => {
                   if (refWebview.currentUrl === homeUrl) return;
-                  console.log(`@@ `, canAddMark());
                   if (canAddMark()) setVisibleInput(true);
                 }}
                 style={{
@@ -268,6 +288,9 @@ const App = () => {
                   <CardView cardElevation={2}>
                     <TouchableOpacity
                       style={styles.mark}
+                      onLongPress={() => {
+                        setMarkMore(item.item);
+                      }}
                       onPress={() => {
                         setCurUrl(item.item.url);
                         setVisibleModal(false);
@@ -291,86 +314,40 @@ const App = () => {
           </View>
         </View>
 
-        <Modal transparent visible={visibleInput}>
-          {/* 제목 입력하는 모달 */}
-          <View
-            style={{
-              flex: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-              borderWidth: 2,
-              borderColor: 'red',
-            }}>
-            <View
-              style={{
-                position: 'absolute',
-                width: '100%',
-                height: '100%',
-                backgroundColor: '#000000aa',
-              }}
-              onTouchEnd={() => {
-                setVisibleInput(false);
-              }}
-            />
-            <View
-              style={{
-                width: '80%',
-                backgroundColor: '#fff',
-                borderRadius: 10,
-                alignItems: 'center',
-              }}>
-              <Text
-                style={{
-                  marginTop: 35,
-                  fontWeight: 'bold',
-                  fontSize: 20,
-                  color: '#444',
-                }}>
-                북마크 이름을 입력해 주세요
-              </Text>
-              <TextInput
-                autoFocus
-                style={{
-                  width: '90%',
-                  borderBottomWidth: 1,
-                  borderBottomColor: newMarkName.length ? '#6078ea' : '#aeaeae',
-                  marginVertical: 30,
-                  fontSize: 15,
-                  paddingVertical: 5,
-                  paddingHorizontal: 10,
-                  color: '#000',
-                }}
-                placeholder="새로운 북마크 이름"
-                onChangeText={t => {
-                  setNewMarkName(t);
-                }}
-              />
-              <View
-                style={{
-                  flexDirection: 'row',
-                  borderTopWidth: 0.5,
-                  borderTopColor: '#aeaeae',
-                }}>
-                <TouchableOpacity
-                  style={{
-                    ...styles.btnInModal,
-                    borderRightWidth: 0.5,
-                    borderRightColor: '#aeaeae',
-                  }}
-                  onPress={addMark}>
-                  <Text style={{...styles.btnTextInModal, color: '#6078ea'}}>
-                    추가
-                  </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.btnInModal} onPress={cancel}>
-                  <Text style={{...styles.btnTextInModal, color: '#4a4a4a'}}>
-                    취소
-                  </Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
+        {/* Modal More */}
+        <ModalMore
+          visible={markMore !== null && !modifing}
+          hide={() => {
+            setMarkMore(null);
+          }}
+          onPressModify={() => {
+            setModifing(true);
+          }}
+          onPressDelete={deleteMark}
+          onPressCopy={() => {
+            toast.show('Copied', 0.7);
+            Clipboard.setString(markMore?.url || '');
+            setMarkMore(null);
+          }}
+        />
+
+        {/* 새 북마크 생성하는 모달 */}
+        <ModalCreate
+          visible={visibleInput}
+          onPressAdd={addMark}
+          setVisible={setVisibleInput}
+        />
+
+        <ModalCreate
+          visible={modifing}
+          setVisible={() => {
+            setModifing(false);
+          }}
+          onCancel={() => {
+            setMarkMore(null);
+          }}
+          onPressModify={modifyMark}
+        />
       </Modal>
     </SafeAreaView>
   );
@@ -394,16 +371,16 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
 
-  btnInModal: {
-    flex: 1,
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  btnTextInModal: {
-    fontWeight: 'bold',
-    fontSize: 15,
-  },
+  // btnInModal: {
+  //   flex: 1,
+  //   height: 50,
+  //   justifyContent: 'center',
+  //   alignItems: 'center',
+  // },
+  // btnTextInModal: {
+  //   fontWeight: 'bold',
+  //   fontSize: 15,
+  // },
   mark: {
     marginVertical: 15,
     marginHorizontal: 10,
@@ -415,6 +392,16 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     backgroundColor: '#f3f3f3',
   },
+  btnMore: {
+    width: '100%',
+    paddingHorizontal: 20,
+    paddingVertical: 15,
+    borderBottomWidth: 0.5,
+    borderBottomColor: '#666',
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  txtMore: {fontSize: 16, color: '#333', marginLeft: 5},
 });
 
 export default App;
